@@ -2,12 +2,7 @@
 
 
 [[projects]]
-  name = "github.com/davecgh/go-spew"
-  packages = ["spew"]
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
-  version = "v1.1.0"
-
-[[projects]]
+  digest = "1:991bb96360eb8db70a40e9c496769fe6a7bbac4047f8376494d9837397078327"
   name = "github.com/go-redis/redis"
   packages = [
     ".",
@@ -17,14 +12,35 @@
     "internal/pool",
     "internal/proto",
     "internal/singleflight",
-    "internal/util"
+    "internal/util",
   ]
+  pruneopts = "UT"
   revision = "480db94d33e6088e08d628833b6c0705451d24bb"
   version = "v6.13.2"
+
+[[projects]]
+  digest = "1:71507205ac9a63b3059fa5e1d466f0b8cf6f258c044a3756b6e269e7f0939832"
+  name = "github.com/google/go-cloud"
+  packages = ["health"]
+  pruneopts = "UT"
+  revision = "2152f209f3c907645f7ebdcacdb2c18cd89e6fa8"
+  version = "0.5.0"
+
+[[projects]]
+  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "def7e313934d9362cdf500439de0acf959ca481d920b8145483abfc91cf47cea"
+  input-imports = [
+    "github.com/go-redis/redis",
+    "github.com/google/go-cloud/health",
+    "github.com/pkg/errors",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -1,8 +1,6 @@
 # redis-health
 
-Can be used to check the health of your Redis instance.
-
-We use it for our Redis-in-Docker-on-Nomad environment to make sure rolling deployment of our Redis clusters are safe and without data loss
+Can be used to check the health of your Redis instance. It setups health monitoring server.
 
 ## Current checks
 
@@ -14,5 +12,12 @@ We use it for our Redis-in-Docker-on-Nomad environment to make sure rolling depl
 
 ## Config
 
-- `REDIS_ADDR` Redis IP+Port to connect to - example: `127.0.0.1:6379`
-- `REDIS_PASS` Redis password to connect with - example: `SoSecure`
+- `LISTEN_ADDR` Heath server listening address (default: `:5000`)
+- `REDIS_ADDR` Redis IP+Port to connect to (default: `127.0.0.1:6379`)
+- `REDIS_PASS` Redis password to connect with (default: "")
+
+## Running with docker
+
+```
+docker run -d xtruder/redis-health
+```

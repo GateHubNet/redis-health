@@ -1,86 +1,72 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"flag"
+	"log"
+	"net/http"
 	"os"
-	"strings"
+	"os/signal"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/google/go-cloud/health"
 )
 
+var (
+	listenAddr string
+	redisAddr  string
+	redisPass  string
+)
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 func main() {
-	// create client
-	client := redisClient()
+	flag.StringVar(&listenAddr, "listen-addr", getEnv("LISTEN_ADDR", ":5000"), "server listen address")
+	flag.StringVar(&redisAddr, "redis-addr", getEnv("REDIS_ADDR", "localhost:6379"), "redis address")
+	flag.StringVar(&redisPass, "redis-password", getEnv("REDIS_PASS", ""), "redis password")
+	flag.Parse()
 
-	// check if its alive
-	if err := client.Ping().Err(); err != nil {
-		critical("Could not ping redis: %s", err)
+	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
+
+	redisHealthChecker := NewRedisHealthChecker(redisAddr, redisPass, log.New(os.Stdout, "redis: ", log.LstdFlags))
+
+	healthz := health.Handler{}
+	healthz.Add(redisHealthChecker)
+
+	server := &http.Server{
+		Addr:     listenAddr,
+		Handler:  &healthz,
+		ErrorLog: logger,
 	}
 
-	// get the client info
-	raw, err := client.Info().Result()
-	if err != nil {
-		critical("Could not get client info: %s", err)
-	}
+	done := make(chan bool)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt)
 
-	// parse out
-	info := parseKeyValue(raw)
+	go func() {
+		<-quit
+		logger.Println("Server is shutting down...")
 
-	// check if redis is loading data from disk
-	if loading, ok := info["loading"]; ok && loading == "1" {
-		warning("Redis is currently loading data from disk")
-	}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	// check if redis is syncing data from master
-	if masterSyncInProgress, ok := info["master_sync_in_progress"]; ok && masterSyncInProgress == "1" {
-		warning("Redis slave is currently syncing data from its master instance")
-	}
-
-	// check if the master link is up
-	if masterLinkUpString, ok := info["master_link_status"]; ok && masterLinkUpString != "up" {
-		warning("Redis slave do not have active connection to its master instance")
-	}
-
-	fmt.Printf("OK!")
-}
-
-func redisClient() *redis.Client {
-	return redis.NewClient(&redis.Options{
-		Addr:         os.Getenv("REDIS_ADDR"),
-		DialTimeout:  1 * time.Second,
-		Password:     os.Getenv("REDIS_PASS"),
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
-	})
-}
-
-func critical(str string, args ...interface{}) {
-	fmt.Printf(str, args...)
-	os.Exit(2)
-}
-
-func warning(str string, args ...interface{}) {
-	fmt.Printf(str, args...)
-	os.Exit(1)
-}
-
-func parseKeyValue(str string) map[string]string {
-	res := make(map[string]string)
-
-	lines := strings.Split(str, "\r\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "#") {
-			continue
+		server.SetKeepAlivesEnabled(false)
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Fatalf("Could not gracefully shutdown the server: %v\n", err)
 		}
+		close(done)
+	}()
 
-		pair := strings.Split(line, ":")
-		if len(pair) != 2 {
-			continue
-		}
-
-		res[pair[0]] = pair[1]
+	logger.Println("Server is ready to handle requests at", listenAddr)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Fatalf("Could not listen on %s: %v\n", listenAddr, err)
 	}
 
-	return res
+	<-done
+	logger.Println("Server stopped")
 }
